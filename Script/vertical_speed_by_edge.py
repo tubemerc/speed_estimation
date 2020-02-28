@@ -75,8 +75,8 @@ class Vertical_speed_estimation_by_edge:
         time_0 = time.time()
         
         while self.end_flag == True:
-            frame_edge = cv2.cvtColor(self.frame_org, cv2.COLOR_BGR2GRAY)
-            frame_edge = cv2.resize(frame_edge, dsize=(self.width,self.height))
+            frame_org = cv2.resize(self.frame_org, dsize=(self.width,self.height))
+            frame_edge = cv2.cvtColor(frame_org, cv2.COLOR_BGR2GRAY)
             frame_edge = cv2.Canny(frame_edge,
                                    threshold1 = self.th_canny_1,
                                    threshold2 = self.th_canny_2)
@@ -131,7 +131,7 @@ class Vertical_speed_estimation_by_edge:
                     cnt_vel.append(cnt)
                     print(cnt, ": Velocity :", _vel)
             
-            cv2.imshow("org", self.frame_org)
+            cv2.imshow("org", frame_org)
             cv2.imshow("edge", frame_edge)
             
             cnt += 1
