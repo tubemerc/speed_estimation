@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import cv2
+import numpy as np
+import time
 
 class Horizontal_speed__estimation_by_com:
     # input_video : 入力映像. device number or file path.
@@ -20,6 +22,11 @@ class Horizontal_speed__estimation_by_com:
         self.coefficient  = coefficient
         self.height       = height
         self.width        = width
+        
+        self.q0 = 1.0
+        self.q1 = 0.0
+        self.q2 = 0.0
+        self.q3 = 0.0
         
         self.org = cv2.VideoCapture(input_video)
         self.end_flag, self.frame_org = self.org.read()
@@ -45,7 +52,10 @@ class Horizontal_speed__estimation_by_com:
     def speed_estimation(self):
         com_sum = []
         vel     = []
-        cnt     = 1
+        self.cnt     = 1
+        
+        print("Speed estimation start.")
+        time_0 = time.time()
         
         while self.end_flag == True:
             frame_org = cv2.resize(self.frame_org, dsize=(self.width, self.height))
@@ -53,7 +63,7 @@ class Horizontal_speed__estimation_by_com:
             _, frame_bin = cv2.threshold(frame_bin, self.th_binary_1,
                                                     self.th_binary_2,
                                                     self.th_binary_3)
-            
+            self.dt = time.time() - time_0
             # 重心座標算出
             contours, _ = cv2.findContours(frame_bin, 
                                            cv2.RETR_EXTERNAL, 
@@ -80,11 +90,13 @@ class Horizontal_speed__estimation_by_com:
                 com_sum_y = int(sum(_com_y)/_len_y)
                 com_sum.append((com_sum_x, com_sum_y))  # com_sum保存
                 # velocity算出.
-                if cnt != 1:
-                    _vel_x = (com_sum[-2][0]-com_sum[-1][0])*self.coefficient
-                    _vel_y = (com_sum[-2][1]-com_sum[-1][1])*self.coefficient
-                    vel.append((_vel_x, _vel_y))  # vel保存.
-                    print(cnt, ": Velocity :", vel[-1])
+                if self.cnt != 1:
+                    self._vel_x = (com_sum[-2][0]-com_sum[-1][0])*self.coefficient
+                    self._vel_y = (com_sum[-2][1]-com_sum[-1][1])*self.coefficient
+                    vel.append((self._vel_x, self._vel_y))  # vel保存.
+                    print(self.cnt, ": Velocity :", vel[-1])
+                    
+                    self.quaternion_estimation()
                 
                 if(_len_x*_len_y != 0):  # com_sum描写
                     self.frame_org = cv2.drawMarker(frame_org,
@@ -93,7 +105,7 @@ class Horizontal_speed__estimation_by_com:
                                                     markerType = cv2.MARKER_CROSS,
                                                     markerSize = 20,
                                                     thickness = 2)
-                cnt += 1
+                self.cnt += 1
             
             cv2.drawContours(frame_org, contours, -1, (0,255,0), 1)
             cv2.imshow("org", frame_org)
@@ -109,7 +121,30 @@ class Horizontal_speed__estimation_by_com:
         cv2.destroyAllWindows()
         self.org.release()
         
-        #print(com_sum)        
+        #print(com_sum)
+        
+    def quaternion_estimation(self):
+        wx = self._vel_y * np.pi / 180.0
+        wy = self._vel_x * np.pi / 180.0 
+        wz = 0.0
+        
+        qdot0 = 0.5 * (           - self.q1*wx - self.q2*wy - self.q3*wz)
+        qdot1 = 0.5 * (self.q0*wx              + self.q2*wz - self.q3*wy)
+        qdot2 = 0.5 * (self.q0*wy - self.q1*wz              + self.q3*wx)
+        qdot3 = 0.5 * (self.q0*wz + self.q1*wy - self.q2*wx)
+        
+        self.q0 += qdot0 * self.dt
+        self.q1 += qdot1 * self.dt
+        self.q2 += qdot2 * self.dt
+        self.q3 += qdot3 * self.dt
+        
+        norm = np.sqrt(self.q0**2 + self.q1**2 + self.q2**2 + self.q3**2)
+        self.q0 /= norm
+        self.q1 /= norm
+        self.q2 /= norm
+        self.q3 /= norm
+        
+        print(self.cnt, ": Quaternion :", self.q0, self.q1, self.q2, self.q3)
 
 if __name__ == "__main__":
     hse_c = Horizontal_speed__estimation_by_com(input_video = 0,
