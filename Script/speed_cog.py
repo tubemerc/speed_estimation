@@ -6,17 +6,20 @@ class Horizontal_speed__estimation_by_com:
     # th_binary_1 : 2値化閾値1.
     # th_binary_2 : 2値化閾値1.
     # th_binary_3 : 2値化処理方法.
+    # coefficient : [pixels/frame(s)]を[m/s]に変換するための係数.
     # height      : 入力画像のリサイズ高さ.
     # width       : 入力画像のリサイズ幅.
     
     def __init__(self, input_video,
                        th_binary_1, th_binary_2, th_binary_3,
+                       coefficient,
                        height=None, width=None):
         self.th_binary_1  = th_binary_1
         self.th_binary_2  = th_binary_2
         self.th_binary_3  = th_binary_3
-        self.height      = height
-        self.width       = width
+        self.coefficient  = coefficient
+        self.height       = height
+        self.width        = width
         
         self.org = cv2.VideoCapture(input_video)
         self.end_flag, self.frame_org = self.org.read()
@@ -41,6 +44,8 @@ class Horizontal_speed__estimation_by_com:
         
     def speed_estimation(self):
         com_sum = []
+        vel     = []
+        cnt     = 1
         
         while self.end_flag == True:
             frame_org = cv2.resize(self.frame_org, dsize=(self.width, self.height))
@@ -61,27 +66,34 @@ class Horizontal_speed__estimation_by_com:
                     _com_y = int(_moment['m01']/_moment['m00'])
                     com_org.append((_com_x, _com_y))
             
-            for com in com_org:  # com_org描写
-                self.frame_org = cv2.drawMarker(frame_org, com, (255,0,0), 
-                                                markerType = cv2.MARKER_CROSS, 
-                                                markerSize = 20, 
-                                                thickness = 1)
-            
-            _com_x = [i[0] for i in com_org]
-            _com_y = [i[1] for i in com_org]
-            _len_x = len(_com_x)
-            _len_y = len(_com_y)
-            com_sum_x = int(sum(_com_x)/_len_x)
-            com_sum_y = int(sum(_com_y)/_len_y)
-            com_sum.append((com_sum_x, com_sum_y))  # com_sum保存
-            
-            if(_len_x*_len_y != 0):  # com_sum描写
-                self.frame_org = cv2.drawMarker(frame_org,
-                                                (com_sum_x, com_sum_y),
-                                                (0,0,255),
-                                                markerType = cv2.MARKER_CROSS,
-                                                markerSize = 20,
-                                                thickness = 2)
+            if com_org:
+                for com in com_org:  # com_org描写
+                    self.frame_org = cv2.drawMarker(frame_org, com, (255,0,0), 
+                                                    markerType = cv2.MARKER_CROSS, 
+                                                    markerSize = 20, 
+                                                    thickness = 1)
+                _com_x = [i[0] for i in com_org]
+                _com_y = [i[1] for i in com_org]
+                _len_x = len(_com_x)
+                _len_y = len(_com_y)
+                com_sum_x = int(sum(_com_x)/_len_x)
+                com_sum_y = int(sum(_com_y)/_len_y)
+                com_sum.append((com_sum_x, com_sum_y))  # com_sum保存
+                # velocity算出.
+                if cnt != 1:
+                    _vel_x = (com_sum[-2][0]-com_sum[-1][0])*self.coefficient
+                    _vel_y = (com_sum[-2][1]-com_sum[-1][1])*self.coefficient
+                    vel.append((_vel_x, _vel_y))  # vel保存.
+                    print(cnt, ": Velocity :", vel[-1])
+                
+                if(_len_x*_len_y != 0):  # com_sum描写
+                    self.frame_org = cv2.drawMarker(frame_org,
+                                                    (com_sum_x, com_sum_y),
+                                                    (0,0,255),
+                                                    markerType = cv2.MARKER_CROSS,
+                                                    markerSize = 20,
+                                                    thickness = 2)
+                cnt += 1
             
             cv2.drawContours(frame_org, contours, -1, (0,255,0), 1)
             cv2.imshow("org", frame_org)
@@ -97,13 +109,15 @@ class Horizontal_speed__estimation_by_com:
         cv2.destroyAllWindows()
         self.org.release()
         
-        print(com_sum)
+        #print(com_sum)        
 
 if __name__ == "__main__":
     hse_c = Horizontal_speed__estimation_by_com(input_video = 0,
-                                                th_binary_1 = 50,
+                                                th_binary_1 = 10,
                                                 th_binary_2 = 255,
                                                 th_binary_3 = cv2.THRESH_BINARY_INV,
+                                                coefficient = 1,
                                                 height      = 240,
-                                                width       = 320)
+                                                width       = 320
+                                                )
     hse_c.speed_estimation()
