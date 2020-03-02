@@ -5,6 +5,19 @@ import statistics as stats
 import time
 from matplotlib import pyplot as plt
 
+set_parameter = {
+                 "input_video" : "../movie/video_1.mp4",
+                 "num_frame"   : 10,
+                 "num_block"   : 3,
+                 "th_canny_1"  : 100,
+                 "th_canny_2"  : 50,
+                 "th_edge_org" : 0.8,
+                 "th_edge_ave" : 0.8,
+                 "coefficient" : 1,
+                 "height"      : 540,
+                 "width"       : 960
+                 }
+
 class Vertical_speed_estimation_by_edge:
     # input_video : 入力映像. device number or file path.
     # num_frame   : 何フレーム毎に速度推定を行うか.
@@ -54,7 +67,7 @@ class Vertical_speed_estimation_by_edge:
               "th_canny_2  :", self.th_canny_2,  "\n",
               "th_edge_org :", self.th_edge_org, "\n",
               "th_edge_ave :", self.th_edge_ave, "\n",
-              "coefficient :", self.coefficient)
+              "coefficient :", self.coefficient, "\n")
         
         cv2.namedWindow("org")
         cv2.namedWindow("edge")
@@ -146,7 +159,7 @@ class Vertical_speed_estimation_by_edge:
         self.org.release()
         
         # グラフ描写.
-        plt.figure(1)
+        plt.figure(figsize=(8,7))
         plt.subplot(211)
         plt.plot(cnt_edge_org, edge_org, label="org")
         plt.plot(cnt_edge_ave, edge_ave, label="ave")
@@ -161,7 +174,7 @@ class Vertical_speed_estimation_by_edge:
         plt.grid()
         plt.show()
         
-        plt.figure(1)
+        plt.figure(figsize=(8,7))
         plt.subplot(211)
         plt.plot(time_edge_org, edge_org, label="org")
         plt.plot(time_edge_ave, edge_ave, label="ave")
@@ -172,19 +185,10 @@ class Vertical_speed_estimation_by_edge:
         plt.subplot(212)
         plt.plot(time_vel, vel)
         plt.xlabel("time[s]")
-        plt.ylabel("velocity[pixels/s]")
+        plt.ylabel("velocity[pixels/frame]")
         plt.grid()
         plt.show()
         
 if __name__ == "__main__":
-    vse_e = Vertical_speed_estimation_by_edge(input_video = "../movie/video_1.mp4",
-                                              num_frame   = 10,
-                                              num_block   = 3,
-                                              th_canny_1  = 100,
-                                              th_canny_2  = 50,
-                                              th_edge_org = 0.8,
-                                              th_edge_ave = 0.8,
-                                              coefficient = 1,
-                                              height      = 540,
-                                              width       = 960)
+    vse_e = Vertical_speed_estimation_by_edge(**set_parameter)
     vse_e.speed_estimation()
