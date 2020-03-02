@@ -2,6 +2,19 @@
 import cv2
 import numpy as np
 import time
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+set_parameter = {
+                 "input_video" : 0,
+                 "th_binary_1" : 10,
+                 "th_binary_2" : 255,
+                 "th_binary_3" : cv2.THRESH_BINARY_INV,
+                 "coefficient" : 1,
+                 "height"      : 240,
+                 "width"       : 320
+                 }
+
 
 class Horizontal_speed__estimation_by_com:
     # input_video : 入力映像. device number or file path.
@@ -44,15 +57,20 @@ class Horizontal_speed__estimation_by_com:
               "Height      :", self.height,      "\n",
               "Width       :", self.width,       "\n",
               "th_binary_1 :", self.th_binary_1, "\n",
-              "th_binary_2 :", self.th_binary_2, "\n")
+              "th_binary_2 :", self.th_binary_2, "\n",
+              "th_binary_3 :", self.th_binary_3, "\n")
         
         cv2.namedWindow("org")
         cv2.namedWindow("bin")
         
     def speed_estimation(self):
-        com_sum = []
-        vel     = []
-        self.cnt     = 1
+        com_sum  = []
+        time_cs  = []
+        cnt_cs   = []
+        vel      = []
+        time_vel = []
+        cnt_vel  = []
+        self.cnt = 1
         
         print("Speed estimation start.")
         time_0 = time.time()
@@ -78,10 +96,12 @@ class Horizontal_speed__estimation_by_com:
             
             if com_org:
                 for com in com_org:  # com_org描写
-                    self.frame_org = cv2.drawMarker(frame_org, com, (255,0,0), 
+                    self.frame_org = cv2.drawMarker(frame_org,
+                                                    com,
+                                                    color      = (255,0,0), 
                                                     markerType = cv2.MARKER_CROSS, 
                                                     markerSize = 20, 
-                                                    thickness = 1)
+                                                    thickness  = 1)
                 _com_x = [i[0] for i in com_org]
                 _com_y = [i[1] for i in com_org]
                 _len_x = len(_com_x)
@@ -89,22 +109,35 @@ class Horizontal_speed__estimation_by_com:
                 com_sum_x = int(sum(_com_x)/_len_x)
                 com_sum_y = int(sum(_com_y)/_len_y)
                 com_sum.append((com_sum_x, com_sum_y))  # com_sum保存
+                time_cs.append(self.dt)
+                cnt_cs.append(self.cnt)
                 # velocity算出.
                 if self.cnt != 1:
-                    self._vel_x = (com_sum[-2][0]-com_sum[-1][0])*self.coefficient
-                    self._vel_y = (com_sum[-2][1]-com_sum[-1][1])*self.coefficient
+                    self._vel_x = (com_sum[-2][0]-com_sum_x)*self.coefficient
+                    self._vel_y = (com_sum[-2][1]-com_sum_y)*self.coefficient
                     vel.append((self._vel_x, self._vel_y))  # vel保存.
+                    time_vel.append(self.dt)
+                    cnt_vel.append(self.cnt)
                     print(self.cnt, ": Velocity :", vel[-1])
+                    # com_sum軌跡描写
+                    cv2.arrowedLine(frame_org,
+                                    (com_sum[-2][0],com_sum[-2][1]),
+                                    (com_sum_x, com_sum_y),
+                                    color     = (255,0,0),
+                                    thickness = 2,
+                                    line_type = 8,
+                                    shift     = 0,
+                                    tipLength = 0.1)
                     
-                    self.quaternion_estimation()
+                    #self.quaternion_estimation()
                 
                 if(_len_x*_len_y != 0):  # com_sum描写
                     self.frame_org = cv2.drawMarker(frame_org,
                                                     (com_sum_x, com_sum_y),
-                                                    (0,0,255),
+                                                    color      = (0,0,255),
                                                     markerType = cv2.MARKER_CROSS,
                                                     markerSize = 20,
-                                                    thickness = 2)
+                                                    thickness  = 2)
                 self.cnt += 1
             
             cv2.drawContours(frame_org, contours, -1, (0,255,0), 1)
@@ -117,15 +150,39 @@ class Horizontal_speed__estimation_by_com:
             key = cv2.waitKey(1)  # 1ms
             if key == 27:
                 break
-            
+        
         cv2.destroyAllWindows()
         self.org.release()
         
-        #print(com_sum)
+        # グラフ描写.
+        fig_cs = plt.figure(figsize=(9,9))
+        axes = fig_cs.add_subplot(111, projection="3d")
+        axes.view_init(elev=0, azim=0)
+        axes.set_title("com_sum locus",            size=20)
+        axes.set_xlabel("frame[frame]",            size=15)
+        axes.set_ylabel("com_sum_x[pixels/frame]", size=15)
+        axes.set_zlabel("com_sum_y[pixels/frame]", size=15)
+        axes.set_ylim(0, self.width)
+        axes.set_zlim(self.height, 0)
+        axes.plot(cnt_cs, [i[0] for i in com_sum], [i[1] for i in com_sum])
+        plt.show()
+        
+        plt.figure(figsize=(8,7))
+        plt.subplot(211)
+        plt.plot(cnt_vel, [i[0] for i in vel])
+        plt.xlabel("frame[frame]")
+        plt.ylabel("velocity_x[pixels/frame]")
+        plt.grid()
+        plt.subplot(212)
+        plt.plot(cnt_vel, [i[1] for i in vel])
+        plt.xlabel("frame[frame]")
+        plt.ylabel("velocity_y[pixels/frame]")
+        plt.grid()
+        plt.show()
         
     def quaternion_estimation(self):
         wx = self._vel_y * np.pi / 180.0
-        wy = self._vel_x * np.pi / 180.0 
+        wy = self._vel_x * np.pi / 180.0
         wz = 0.0
         
         qdot0 = 0.5 * (           - self.q1*wx - self.q2*wy - self.q3*wz)
@@ -147,12 +204,5 @@ class Horizontal_speed__estimation_by_com:
         print(self.cnt, ": Quaternion :", self.q0, self.q1, self.q2, self.q3)
 
 if __name__ == "__main__":
-    hse_c = Horizontal_speed__estimation_by_com(input_video = 0,
-                                                th_binary_1 = 10,
-                                                th_binary_2 = 255,
-                                                th_binary_3 = cv2.THRESH_BINARY_INV,
-                                                coefficient = 1,
-                                                height      = 240,
-                                                width       = 320
-                                                )
+    hse_c = Horizontal_speed__estimation_by_com(**set_parameter)
     hse_c.speed_estimation()
