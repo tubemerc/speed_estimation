@@ -11,6 +11,7 @@ set_parameter = {
                  "th_binary_2" : 255,
                  "th_binary_3" : cv2.THRESH_BINARY_INV,
                  "coefficient" : 1,
+                 "areasize"    : 0.001,
                  "height"      : 240,
                  "width"       : 320
                  }
@@ -19,15 +20,17 @@ set_parameter = {
 class Horizontal_speed__estimation_by_com:
     # input_video : 入力映像. device number or file path.
     # th_binary_1 : 2値化閾値1.
-    # th_binary_2 : 2値化閾値1.
+    # th_binary_2 : 2値化閾値2.
     # th_binary_3 : 2値化処理方法.
     # coefficient : [pixels/frame(s)]を[m/s]に変換するための係数.
+    # areasize    : 輪郭の採用範囲.
     # height      : 入力画像のリサイズ高さ.
     # width       : 入力画像のリサイズ幅.
     
     def __init__(self, input_video,
                        th_binary_1, th_binary_2, th_binary_3,
                        coefficient,
+                       areasize,
                        height=None, width=None):
         self.th_binary_1  = th_binary_1
         self.th_binary_2  = th_binary_2
@@ -53,12 +56,14 @@ class Horizontal_speed__estimation_by_com:
             self.height = _height
         if width is None:
             self.width = _width
+        self.areasize     = height*width * areasize
         print("<Setting>\n "
               "Height      :", self.height,      "\n",
               "Width       :", self.width,       "\n",
               "th_binary_1 :", self.th_binary_1, "\n",
               "th_binary_2 :", self.th_binary_2, "\n",
-              "th_binary_3 :", self.th_binary_3, "\n")
+              "th_binary_3 :", self.th_binary_3, "\n",
+              "Areasize    :", self.areasize,    "\n")
         
         cv2.namedWindow("org")
         cv2.namedWindow("bin")
@@ -76,8 +81,9 @@ class Horizontal_speed__estimation_by_com:
         time_0 = time.time()
         
         while self.end_flag == True:
-            frame_org = cv2.resize(self.frame_org, dsize=(self.width, self.height))
-            frame_bin = cv2.cvtColor(frame_org, cv2.COLOR_BGR2GRAY)
+            self.frame_org = cv2.resize(self.frame_org,
+                                        dsize=(self.width, self.height))
+            frame_bin = cv2.cvtColor(self.frame_org, cv2.COLOR_BGR2GRAY)
             _, frame_bin = cv2.threshold(frame_bin, self.th_binary_1,
                                                     self.th_binary_2,
                                                     self.th_binary_3)
@@ -85,20 +91,23 @@ class Horizontal_speed__estimation_by_com:
             # 重心座標算出
             contours, _ = cv2.findContours(frame_bin, 
                                            cv2.RETR_EXTERNAL, 
-                                           cv2.CHAIN_APPROX_NONE)
+                                           cv2.CHAIN_APPROX_TC89_L1)
+            #print(_)
             com_org = []
             for c in contours:
                 _moment = cv2.moments(c)
-                if(_moment['m00'] != 0):
-                    _com_x = int(_moment['m10']/_moment['m00'])
-                    _com_y = int(_moment['m01']/_moment['m00'])
-                    com_org.append((_com_x, _com_y))
+                #print(_moment["m00"])
+                if(_moment["m00"] != 0):
+                    if(_moment["m00"] > self.areasize):
+                        _com_x = int(_moment["m10"]/_moment["m00"])
+                        _com_y = int(_moment["m01"]/_moment["m00"])
+                        com_org.append((_com_x, _com_y))
             
-            if com_org:
+            if com_org:                
                 for com in com_org:  # com_org描写
-                    self.frame_org = cv2.drawMarker(frame_org,
+                    self.frame_org = cv2.drawMarker(self.frame_org,
                                                     com,
-                                                    color      = (255,0,0), 
+                                                    color      = (0,0,255), 
                                                     markerType = cv2.MARKER_CROSS, 
                                                     markerSize = 20, 
                                                     thickness  = 1)
@@ -120,7 +129,7 @@ class Horizontal_speed__estimation_by_com:
                     cnt_vel.append(self.cnt)
                     print(self.cnt, ": Velocity :", vel[-1])
                     # com_sum軌跡描写
-                    cv2.arrowedLine(frame_org,
+                    cv2.arrowedLine(self.frame_org,
                                     (com_sum[-2][0],com_sum[-2][1]),
                                     (com_sum_x, com_sum_y),
                                     color     = (255,0,0),
@@ -132,7 +141,7 @@ class Horizontal_speed__estimation_by_com:
                     #self.quaternion_estimation()
                 
                 if(_len_x*_len_y != 0):  # com_sum描写
-                    self.frame_org = cv2.drawMarker(frame_org,
+                    self.frame_org = cv2.drawMarker(self.frame_org,
                                                     (com_sum_x, com_sum_y),
                                                     color      = (0,0,255),
                                                     markerType = cv2.MARKER_CROSS,
@@ -140,8 +149,8 @@ class Horizontal_speed__estimation_by_com:
                                                     thickness  = 2)
                 self.cnt += 1
             
-            cv2.drawContours(frame_org, contours, -1, (0,255,0), 1)
-            cv2.imshow("org", frame_org)
+            cv2.drawContours(self.frame_org, contours, -1, (0,255,0), 1)
+            cv2.imshow("org", self.frame_org)
             cv2.imshow("bin", frame_bin)
             
             self.end_flag, self.frame_org = self.org.read()
