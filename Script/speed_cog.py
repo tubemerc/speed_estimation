@@ -7,11 +7,11 @@ from mpl_toolkits.mplot3d import Axes3D
 
 set_parameter = {
                  "input_video" : 0,
-                 "th_binary_1" : 10,
+                 "th_binary_1" : 50,
                  "th_binary_2" : 255,
                  "th_binary_3" : cv2.THRESH_BINARY_INV,
                  "coefficient" : 1,
-                 "areasize"    : 0.001,
+                 "areasize"    : 0.0008,
                  "height"      : 240,
                  "width"       : 320
                  }
